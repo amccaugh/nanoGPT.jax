@@ -194,9 +194,9 @@ while True:
             checkpoint_manager.save(iter_num, args=ocp.args.Composite(
                 state=ocp.args.StandardSave(state),
                 model_args=ocp.args.StandardSave(model_args),
-                iter_num=ocp.args.StandardSave(iter_num),
-                val_loss=ocp.args.StandardSave(val_loss),
-                best_val_loss=ocp.args.StandardSave(best_val_loss),
+                # iter_num=ocp.args.StandardSave(iter_num),
+                # val_loss=ocp.args.StandardSave(val_loss),
+                # best_val_loss=ocp.args.StandardSave(best_val_loss),
             ))
             checkpoint_manager.wait_until_finished()
     if iter_num == 0 and eval_only:
