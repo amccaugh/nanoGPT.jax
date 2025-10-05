@@ -61,6 +61,8 @@ config = {k: globals()[k] for k in config_keys} # will be useful for logging
 
 # -----------------------------------------------------------------------------
 # checkpoint manager
+os.makedirs(os.path.abspath(os.path.join(out_dir, 'checkpoint')), exist_ok=True)
+
 checkpoint_manager = ocp.CheckpointManager(
     ocp.test_utils.erase_and_create_empty(os.path.abspath(os.path.join(out_dir, 'checkpoint'))),
     item_handlers={
