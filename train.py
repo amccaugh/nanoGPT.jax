@@ -1,3 +1,4 @@
+#%%
 """
 This training file implemented in Jax currently only supports training with CPU.
 For CUDA support, DDP support, and pretrained weight loading, expect future releases :)
@@ -10,7 +11,7 @@ from functools import partial
 
 import numpy as np
 import jax
-from orbax import checkpoint as ocp
+# from orbax import checkpoint as ocp
 from flax import serialization
 from flax.training import train_state
 
@@ -54,32 +55,62 @@ lr_decay_iters = 600000 # should be ~= max_iters per Chinchilla
 min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 max_checkpoints_to_keep = 5
 
+
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 500 # keep frequent because we'll overfit
+eval_iters = 100
+log_interval = 5 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+max_checkpoints_to_keep = 2
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 12
+block_size = 96 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 4
+n_head = 4
+n_embd = 192
+dropout = 0.1
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+
 # -----------------------------------------------------------------------------
 config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
-exec(open('configurator.py').read()) # overrides from command line or config file
 config = {k: globals()[k] for k in config_keys} # will be useful for logging
 
-# -----------------------------------------------------------------------------
-# checkpoint manager
-os.makedirs(os.path.abspath(os.path.join(out_dir, 'checkpoint')), exist_ok=True)
+# # -----------------------------------------------------------------------------
+# # checkpoint manager
+# os.makedirs(os.path.abspath(os.path.join(out_dir, 'checkpoint')), exist_ok=True)
 
-checkpoint_manager = ocp.CheckpointManager(
-    ocp.test_utils.erase_and_create_empty(os.path.abspath(os.path.join(out_dir, 'checkpoint'))),
-    item_handlers={
-        'state': ocp.StandardCheckpointHandler(),
-        'model_args': ocp.StandardCheckpointHandler(),
-        'iter_num': ocp.StandardCheckpointHandler(),
-        'val_loss': ocp.StandardCheckpointHandler(),
-        'best_val_loss': ocp.StandardCheckpointHandler(),
-    },
-    options=ocp.CheckpointManagerOptions(
-        max_to_keep=max_checkpoints_to_keep,
-        best_fn=lambda checkpoint: checkpoint['val_loss'],
-        best_mode='min',
-        keep_checkpoints_without_metrics=False,
-        create=True,
-    ),
-)
+# checkpoint_manager = ocp.CheckpointManager(
+#     ocp.test_utils.erase_and_create_empty(os.path.abspath(os.path.join(out_dir, 'checkpoint'))),
+#     item_handlers={
+#         'state': ocp.StandardCheckpointHandler(),
+#         'model_args': ocp.StandardCheckpointHandler(),
+#         'iter_num': ocp.StandardCheckpointHandler(),
+#         'val_loss': ocp.StandardCheckpointHandler(),
+#         'best_val_loss': ocp.StandardCheckpointHandler(),
+#     },
+#     options=ocp.CheckpointManagerOptions(
+#         max_to_keep=max_checkpoints_to_keep,
+#         best_fn=lambda checkpoint: checkpoint['val_loss'],
+#         best_mode='min',
+#         keep_checkpoints_without_metrics=False,
+#         create=True,
+#     ),
+# )
 
 # -----------------------------------------------------------------------------
 # poor man's data loader
@@ -186,19 +217,19 @@ while True:
         losses = estimate_loss()
         print(f"iter {iter_num} loss: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         val_loss = losses['val']
-        is_best_val = val_loss < best_val_loss
-        if is_best_val:
-            best_val_loss = val_loss
-        if iter_num > 0 and (is_best_val or always_save_checkpoint):
-            print(f"saving checkpoint to {out_dir}")
-            checkpoint_manager.save(iter_num, args=ocp.args.Composite(
-                state=ocp.args.StandardSave(state),
-                model_args=ocp.args.StandardSave(model_args),
-                # iter_num=ocp.args.StandardSave(iter_num),
-                # val_loss=ocp.args.StandardSave(val_loss),
-                # best_val_loss=ocp.args.StandardSave(best_val_loss),
-            ))
-            checkpoint_manager.wait_until_finished()
+        # is_best_val = val_loss < best_val_loss
+        # if is_best_val:
+        #     best_val_loss = val_loss
+        # if iter_num > 0 and (is_best_val or always_save_checkpoint):
+        #     print(f"saving checkpoint to {out_dir}")
+            # checkpoint_manager.save(iter_num, args=ocp.args.Composite(
+            #     state=ocp.args.StandardSave(state),
+            #     model_args=ocp.args.StandardSave(model_args),
+            #     # iter_num=ocp.args.StandardSave(iter_num),
+            #     # val_loss=ocp.args.StandardSave(val_loss),
+            #     # best_val_loss=ocp.args.StandardSave(best_val_loss),
+            # ))
+            # checkpoint_manager.wait_until_finished()
     if iter_num == 0 and eval_only:
         break
     
@@ -217,4 +248,6 @@ while True:
     if iter_num > max_iters:
         break
 
-checkpoint_manager.close()
+# checkpoint_manager.close()
+
+# %%
