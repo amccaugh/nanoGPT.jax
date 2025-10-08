@@ -8,6 +8,7 @@ dependencies = [
     "flax>=0.12.0",
     "ipykernel>=6.30.1",
     "jax>=0.7.2",
+    "matplotlib>=3.10.6",
     "numpy>=2.3.3",
     "optax>=0.2.6",
     "orbax>=0.1.9",
