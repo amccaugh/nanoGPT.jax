@@ -1,3 +1,5 @@
+# TOOD: CHange get_batch so we can get deterministic batches for deltavec analysis
+
 #%%
 """
 This training file implemented in Jax currently only supports training with CPU.
@@ -284,19 +286,19 @@ def tree_stack(list_of_trees):
 stacked_biases = tree_stack(recorded_biases)
 
 
-plt.pcolor(stacked_biases['h_0']['attn']['c_attn']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['attn']['c_attn']['bias'], shading='nearest')
 plt.show()
-plt.pcolor(stacked_biases['h_0']['attn']['c_proj']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['attn']['c_proj']['bias'], shading='nearest')
 plt.show()
-plt.pcolor(stacked_biases['h_0']['ln_1']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['ln_1']['bias'], shading='nearest')
 plt.show()
-plt.pcolor(stacked_biases['h_0']['ln_2']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['ln_2']['bias'], shading='nearest')
 plt.show()
-plt.pcolor(stacked_biases['h_0']['mlp']['c_proj']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['mlp']['c_proj']['bias'], shading='nearest')
 plt.show()
-plt.pcolor(stacked_biases['h_0']['mlp']['c_fc']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['mlp']['c_fc']['bias'], shading='nearest')
 plt.show()
-plt.pcolor(stacked_biases['h_0']['mlp']['c_fc']['bias'], shading='nearest')
+plt.pcolor(stacked_biases['h_2']['mlp']['c_fc']['bias'], shading='nearest')
 plt.show()
 # plt.imshow(stacked_biases['h_0']['attn']['c_attn']['bias'])
 plt.colorbar()
