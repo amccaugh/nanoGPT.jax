@@ -71,7 +71,7 @@ max_checkpoints_to_keep = 2
 
 dataset = 'shakespeare_char'
 gradient_accumulation_steps = 1
-batch_size = 12
+batch_size = 1
 block_size = 96 # context of up to 256 previous characters
 
 # baby GPT model :)
@@ -120,9 +120,10 @@ config = {k: globals()[k] for k in config_keys} # will be useful for logging
 data_dir = os.path.join('data', dataset)
 train_data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
 val_data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
-def get_batch(split):
+def get_batch(split, seed=None):
     data = train_data if split == 'train' else val_data
-    ix = np.random.randint(len(data)-block_size, size=(batch_size,))
+    rng = np.random.RandomState(seed) if seed is not None else np.random
+    ix = rng.randint(len(data)-block_size, size=(batch_size,))
     x = np.stack([data[i:i+block_size].astype(np.int32) for i in ix])
     y = np.stack([data[i+1:i+1+block_size].astype(np.int32) for i in ix])
     return x, y
@@ -211,6 +212,18 @@ def train_step(state: train_state.TrainState, batch):
     state = state.apply_gradients(grads=grad)
     return loss, state, grad
 
+# FIXME: this is a lazy hack to get the gradients without updating the parameters
+@partial(jax.jit, donate_argnums=(0,))
+def train_step_noupdate(state: train_state.TrainState, batch):
+    def loss_fn(params):
+        state_ = state.replace(params=params)
+        _, loss = forward(state_, batch, train=True)
+        return loss
+    grad_fn = jax.value_and_grad(loss_fn)
+    loss, grad = grad_fn(state.params)
+    # state = state.apply_gradients(grads=grad)
+    return loss, state, grad
+
 # -----------------------------------------------------------------------------
 
 # Record biases for deltavec analysis
@@ -262,6 +275,7 @@ while True:
         break
 
     # Record biases
+    loss, state, grad = train_step_noupdate(state, get_batch('train', seed = 1))
     recorded_biases.append(jax.tree.map(lambda ib,g: g if ib else None, is_bias, grad))
 
     # Record the bias gradients for a few layers
@@ -305,3 +319,80 @@ plt.colorbar()
 plt.show()
 
 # %%
+
+plt.plot(stacked_biases['h_0']['attn']['c_attn']['bias'][:,1])
+plt.show()
+plt.plot(stacked_biases['h_0']['attn']['c_proj']['bias'][:,1])
+plt.show()
+plt.plot(stacked_biases['h_0']['ln_1']['bias'][:,1])
+plt.show()
+plt.plot(stacked_biases['h_0']['ln_2']['bias'][:,1])
+plt.show()
+plt.plot(stacked_biases['h_0']['mlp']['c_proj']['bias'][:,1])
+plt.show()
+plt.plot(stacked_biases['h_0']['mlp']['c_fc']['bias'][:,1])
+plt.show()
+# %%
+
+def cosine_similarity_matrix_rows_nearest(mat):
+    """
+    Given a matrix of shape (N, M), compute the cosine similarity between
+    consecutive rows: (row 0, row 1), (row 1, row 2), ..., (row N-2, row N-1).
+    Returns a numpy array of shape (N-1,).
+    """
+    # Ensure input is a numpy array
+    mat = np.asarray(mat)
+    # Compute dot products between consecutive rows
+    dot_products = np.sum(mat[:-1] * mat[1:], axis=1)
+    # Compute norms of consecutive rows
+    norms_1 = np.linalg.norm(mat[:-1], axis=1)
+    norms_2 = np.linalg.norm(mat[1:], axis=1)
+    # Avoid division by zero
+    denom = norms_1 * norms_2
+    denom[denom == 0] = 1e-8
+    cos_sim = dot_products / denom
+    return cos_sim
+
+def cosine_similarity_rows_to_j(mat, j):
+    """
+    Given a matrix of shape (N, M), compute the cosine similarity between
+    each row n (for n in 0..N-1, n != j) and row j.
+    Returns a numpy array of shape (N,) where entry n is the cosine similarity
+    between row n and row j. Entry j is set to np.nan.
+    """
+    mat = np.asarray(mat)
+    norms = np.linalg.norm(mat, axis=1)
+    norm_j = norms[j]
+    # Avoid division by zero
+    norms[norms == 0] = 1e-8
+    if norm_j == 0:
+        norm_j = 1e-8
+    dot_products = np.dot(mat, mat[j])
+    cos_sims = dot_products / (norms * norm_j)
+    cos_sims[j] = np.nan  # set self-comparison to nan
+    return cos_sims
+
+# Example usage:
+# j = 10
+# cos_sims_to_j = cosine_similarity_rows_to_j(stacked_biases['h_0']['attn']['c_attn']['bias'], j)
+# plt.plot(cos_sims_to_j)
+# plt.title(f"Cosine similarity of each row to row {j}")
+# plt.xlabel("n")
+# plt.ylabel("cosine similarity to row j")
+# plt.show()
+
+
+
+# Example usage:
+# Suppose you want to compute cosine similarity between consecutive time steps
+# for the bias vector in a particular layer, e.g.:
+# stacked_biases['h_0']['attn']['c_attn']['bias'] is (num_steps, bias_dim)
+# cos_sims = cosine_similarity_matrix_rows_nearest(stacked_biases['h_0']['attn']['c_attn']['bias'])
+# plt.plot(cos_sims)
+# plt.title("Cosine similarity between consecutive bias vectors")
+# plt.show()
+
+plt.plot(cosine_similarity_matrix_rows_nearest(stacked_biases['h_2']['attn']['c_attn']['bias']))
+plt.show()
+plt.plot(cosine_similarity_rows_to_j(stacked_biases['h_2']['attn']['c_attn']['bias'], -1))
+plt.show()
